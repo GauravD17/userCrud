@@ -4,54 +4,62 @@ import { useNavigate } from "react-router-dom";
 import './Home.css';
 
 function Home() {
-  const [users, setUsers] = useState([]);
-  const [editingId, setEditingId] = useState(null);
-  const [editEmail, setEditEmail] = useState("");
-  const [editPass, setEditPass] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
+  const [state, setState] = useState({
+    users: [],
+    editingId: null,
+    editEmail: "",
+    editPass: "",
+    currentUser: null
+  })
+  
   const Api = "http://localhost:3000";
   const navigate = useNavigate();
 
-  
-  
+  // Get users from backend
   useEffect(() => {
     const getData = async () => {
       try {
-        const userDetails = await axios.get(Api + "/user");
-        setUsers(userDetails.data);
+        const response = await axios.get(Api + "/user");
+     
+        if (response.data.success && response.data.data) {
+          const usersList = response.data.data.users || response.data.data;
+          setState(prev => ({ 
+            ...prev, 
+            users: Array.isArray(usersList) ? usersList : [] 
+          }));
+        } else {
+          setState(prev => ({ ...prev, users: [] }));
+        }
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching users:", error);
+        setState(prev => ({ ...prev, users: [] }));
       }
     };
     getData();
   }, []);
 
-  
-useEffect(() => {
-  const getData = async () => {
+  useEffect(() => {
     try {
-      const userDetails = await axios.get(Api + "/user");
-      setUsers(userDetails.data);
+      const storedUser = sessionStorage.getItem('user');
+      
+      if (storedUser && storedUser !== 'undefined' && storedUser !== 'null') {
+        const parsedUser = JSON.parse(storedUser);
+        setState(prev => ({ ...prev, currentUser: parsedUser }));
+      } else {
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('isAdmin');
+        navigate('/');
+      }
     } catch (error) {
-      console.log(error);
+      console.error("Error parsing user data:", error);
+      sessionStorage.removeItem('user');
+      sessionStorage.removeItem('isAdmin');
+      navigate('/');
     }
-  };
-  getData();
-}, []);
-
-// ADD THIS NEW useEffect HERE:
-useEffect(() => {
-  const storedUser = sessionStorage.getItem('user');
-  if (storedUser) {
-    setCurrentUser(JSON.parse(storedUser));
-  } else {
-    // If no user is logged in, redirect to login page
-    navigate('/');
-  }
-}, [navigate]);
+  }, [navigate]);
 
   async function onDeleteClick(id) {
-    if (!currentUser?.isAdmin) {
+    if (!state.currentUser?.isAdmin) {
       alert("Access Denied: Only admins can delete users");
       return;
     }
@@ -60,79 +68,100 @@ useEffect(() => {
       try {
         const response = await axios.delete(Api + "/delete/" + id, {
           data: {
-            userId: currentUser._id,
-            isAdmin: currentUser.isAdmin
+            userId: state.currentUser._id,
+            isAdmin: state.currentUser.isAdmin
           }
         });
 
         if (response.data.success) {
-          setUsers((prev) => prev.filter((u) => u._id !== id));
+          setState(prev => ({
+            ...prev,
+            users: prev.users.filter((u) => u._id !== id)
+          }));
           alert("User deleted successfully");
         } else {
           alert(response.data.message || "Failed to delete user");
         }
       } catch (error) {
-        console.log(error);
+        console.error("Delete error:", error);
         alert(error.response?.data?.message || "Error deleting user");
       }
     }
   }
 
-  // START EDITING (ADMIN ONLY)
   function startEdit(user) {
-    if (!currentUser?.isAdmin) {
+    if (!state.currentUser?.isAdmin) {
       alert("Access Denied: Only admins can edit users");
       return;
     }
-    setEditingId(user._id);
-    setEditEmail(user.email);
-    setEditPass("");
+    setState(prev => ({
+      ...prev,
+      editingId: user._id,
+      editEmail: user.email,
+      editPass: ""
+    }));
   }
 
-  // CANCEL EDITING
   function cancelEdit() {
-    setEditingId(null);
-    setEditEmail("");
-    setEditPass("");
+    setState(prev => ({
+      ...prev,
+      editingId: null,
+      editEmail: "",
+      editPass: ""
+    }));
   }
 
-  // SAVE UPDATE (ADMIN ONLY)
   async function onSaveClick(id) {
-    if (!currentUser?.isAdmin) {
+    if (!state.currentUser?.isAdmin) {
       alert("Access Denied: Only admins can update users");
       return;
     }
 
+    if (!state.editEmail.trim()) {
+      alert("Email cannot be empty");
+      return;
+    }
+
     try {
-      const response = await axios.put(Api + "/update/" + id, {
-        email: editEmail,
-        password: editPass,
-        userId: currentUser._id,
-        isAdmin: currentUser.isAdmin
-      });
+      const updateData = {
+        userId: state.currentUser._id,
+        isAdmin: state.currentUser.isAdmin
+      };
+
+      if (state.editEmail !== state.users.find(u => u._id === id)?.email) {
+        updateData.email = state.editEmail;
+      }
+
+      if (state.editPass.trim()) {
+        updateData.password = state.editPass;
+      }
+
+      const response = await axios.put(Api + "/update/" + id, updateData);
 
       if (response.data.success) {
-        setUsers((prev) =>
-          prev.map((u) =>
-            u._id === id ? { ...u, email: editEmail } : u
-          )
-        );
-        setEditingId(null);
-        setEditEmail("");
-        setEditPass("");
+        setState(prev => ({
+          ...prev,
+          users: prev.users.map((u) =>
+            u._id === id ? { ...u, email: state.editEmail } : u
+          ),
+          editingId: null,
+          editEmail: "",
+          editPass: ""
+        }));
         alert("User updated successfully");
       } else {
         alert(response.data.message || "Failed to update user");
       }
     } catch (error) {
-      console.log(error);
+      console.error("Update error:", error);
       alert(error.response?.data?.message || "Error updating user");
     }
   }
 
-  // LOGOUT
   function handleLogout() {
     sessionStorage.removeItem('user');
+    sessionStorage.removeItem('isAdmin');
+    setState(prev => ({ ...prev, currentUser: null }));
     navigate('/');
   }
 
@@ -144,19 +173,19 @@ useEffect(() => {
           <p>Manage all registered users</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          {currentUser && (
+          {state.currentUser && (
             <>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ margin: 0, fontSize: '14px', color: '#666' }}>
-                  {currentUser.email}
+                  {state.currentUser.email}
                 </p>
                 <p style={{ 
                   margin: 0, 
                   fontSize: '12px', 
-                  color: currentUser.isAdmin ? '#10b981' : '#6b7280',
+                  color: state.currentUser.isAdmin ? '#10b981' : '#6b7280',
                   fontWeight: 'bold' 
                 }}>
-                  {currentUser.isAdmin ? '👑 Admin' : '👤 User'}
+                  {state.currentUser.isAdmin ? '👑 Admin' : '👤 User'}
                 </p>
               </div>
               <button 
@@ -167,7 +196,8 @@ useEffect(() => {
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  fontWeight: '500'
                 }}
               >
                 Logout
@@ -177,7 +207,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {!currentUser?.isAdmin && (
+      {!state.currentUser?.isAdmin && (
         <div style={{
           padding: '12px',
           background: '#fef3c7',
@@ -201,20 +231,23 @@ useEffect(() => {
             </tr>
           </thead>
           <tbody>
-            {users.length === 0 ? (
+            {state.users.length === 0 ? (
               <tr>
                 <td colSpan="4" className="no-data">No users found</td>
               </tr>
             ) : (
-              users.map((user) => (
+              state.users.map((user) => (
                 <tr key={user._id}>
                   <td>
-                    {editingId === user._id ? (
+                    {state.editingId === user._id ? (
                       <input
                         type="email"
                         className="edit-input"
-                        value={editEmail}
-                        onChange={(e) => setEditEmail(e.target.value)}
+                        value={state.editEmail}
+                        onChange={(e) => setState(prev => ({ 
+                          ...prev, 
+                          editEmail: e.target.value 
+                        }))}
                         placeholder="Enter new email"
                       />
                     ) : (
@@ -222,13 +255,16 @@ useEffect(() => {
                     )}
                   </td>
                   <td>
-                    {editingId === user._id ? (
+                    {state.editingId === user._id ? (
                       <input
                         type="password"
                         className="edit-input"
-                        value={editPass}
-                        onChange={(e) => setEditPass(e.target.value)}
-                        placeholder="Enter new password"
+                        value={state.editPass}
+                        onChange={(e) => setState(prev => ({ 
+                          ...prev, 
+                          editPass: e.target.value 
+                        }))}
+                        placeholder="Enter new password (optional)"
                       />
                     ) : (
                       <span className="password-mask">••••••••</span>
@@ -248,7 +284,7 @@ useEffect(() => {
                   </td>
                   <td>
                     <div className="action-buttons">
-                      {editingId === user._id ? (
+                      {state.editingId === user._id ? (
                         <>
                           <button
                             className="btn btn-save"
@@ -268,10 +304,10 @@ useEffect(() => {
                           <button
                             className="btn btn-edit"
                             onClick={() => startEdit(user)}
-                            disabled={!currentUser?.isAdmin}
+                            disabled={!state.currentUser?.isAdmin}
                             style={{
-                              opacity: currentUser?.isAdmin ? 1 : 0.5,
-                              cursor: currentUser?.isAdmin ? 'pointer' : 'not-allowed'
+                              opacity: state.currentUser?.isAdmin ? 1 : 0.5,
+                              cursor: state.currentUser?.isAdmin ? 'pointer' : 'not-allowed'
                             }}
                           >
                             Edit
@@ -279,10 +315,10 @@ useEffect(() => {
                           <button
                             className="btn btn-delete"
                             onClick={() => onDeleteClick(user._id)}
-                            disabled={!currentUser?.isAdmin}
+                            disabled={!state.currentUser?.isAdmin}
                             style={{
-                              opacity: currentUser?.isAdmin ? 1 : 0.5,
-                              cursor: currentUser?.isAdmin ? 'pointer' : 'not-allowed'
+                              opacity: state.currentUser?.isAdmin ? 1 : 0.5,
+                              cursor: state.currentUser?.isAdmin ? 'pointer' : 'not-allowed'
                             }}
                           >
                             Delete

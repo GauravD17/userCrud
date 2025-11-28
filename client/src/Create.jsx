@@ -4,63 +4,69 @@ import { useNavigate } from 'react-router-dom'
 import './Create.css'
 
 function Create() {  
-  const [isLogin, setIsLogin] = useState(true)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [message, setMessage] = useState("")
+  const [formState, setFormState] = useState({
+    isLogin: true,
+    email: "",
+    password: "",
+    message: ""
+  })
+  
   const Api = "http://localhost:3000"
   const navigate = useNavigate()
 
-
-
   function onEmailChange(e) {
-    setEmail(e.target.value)
+    setFormState(prev => ({ ...prev, email: e.target.value }))
   }
     
   function onPasswordChange(e) {
-    setPassword(e.target.value)
+    setFormState(prev => ({ ...prev, password: e.target.value }))
   }
 
   async function onFormSubmit(e) {
-  e.preventDefault()
-  setMessage("")
-  
-  try {
-    const endpoint = isLogin ? '/login' : '/register'
-    const response = await axios.post(Api + endpoint, {
-      email,
-      password
-    })
+    e.preventDefault()
+    setFormState(prev => ({ ...prev, message: "" }))
     
-    if (response.data.success === false) {
-      setMessage(response.data.message)
-    } else if (isLogin && response.data.success) {
-      // Store user data in sessionStorage - UNCOMMENT THIS!
-      sessionStorage.setItem('user', JSON.stringify(response.data.user))
+    try {
+      const endpoint = formState.isLogin ? '/login' : '/register'
+      const response = await axios.post(Api + endpoint, {
+        email: formState.email,
+        password: formState.password
+      })
       
-      setMessage("Login successful!")
-      setTimeout(() => {
-        navigate('/home')
-      }, 500)
-      setEmail("")
-      setPassword("")
-    } else {
-      setMessage("Registration successful! Please login.")
-      setEmail("")
-      setPassword("")
-      setIsLogin(true)
+      if (response.data.success === false) {
+        setFormState(prev => ({ ...prev, message: response.data.message }))
+      } else if (formState.isLogin && response.data.success) {
+     
+        sessionStorage.setItem('user', JSON.stringify(response.data.data))
+        
+        setFormState(prev => ({ ...prev, message: "Login successful!" }))
+        setTimeout(() => {
+          navigate('/home')
+        }, 500)
+        setFormState(prev => ({ ...prev, email: "", password: "" }))
+      } else {
+        setFormState(prev => ({ 
+          ...prev, 
+          message: "Registration successful! Please login.",
+          email: "",
+          password: "",
+          isLogin: true
+        }))
+      }
+    } catch (error) {
+      setFormState(prev => ({ ...prev, message: "An error occurred. Please try again." }))
+      console.log(error)
     }
-  } catch (error) {
-    setMessage("An error occurred. Please try again.")
-    console.log(error)
   }
-}
 
   function switchMode() {
-    setIsLogin(!isLogin)
-    setMessage("")
-    setEmail("")
-    setPassword("")
+    setFormState(prev => ({
+      ...prev,
+      isLogin: !prev.isLogin,
+      message: "",
+      email: "",
+      password: ""
+    }))
   }
 
   return (
@@ -68,14 +74,14 @@ function Create() {
       <div className="auth-card">
         <div className="toggle-buttons">
           <button
-            onClick={() => setIsLogin(true)}
-            className={`toggle-btn ${isLogin ? 'active' : ''}`}
+            onClick={() => setFormState(prev => ({ ...prev, isLogin: true }))}
+            className={`toggle-btn ${formState.isLogin ? 'active' : ''}`}
           >
             Login
           </button>
           <button
-            onClick={() => setIsLogin(false)}
-            className={`toggle-btn ${!isLogin ? 'active' : ''}`}
+            onClick={() => setFormState(prev => ({ ...prev, isLogin: false }))}
+            className={`toggle-btn ${!formState.isLogin ? 'active' : ''}`}
           >
             Register
           </button>
@@ -83,10 +89,10 @@ function Create() {
 
         <div className="form-content">
           <h2 className="form-title">
-            {isLogin ? 'Welcome Back' : 'Create Account'}
+            {formState.isLogin ? 'Welcome Back' : 'Create Account'}
           </h2>
           <p className="form-subtitle">
-            {isLogin ? 'Sign in to continue' : 'Sign up to get started'}
+            {formState.isLogin ? 'Sign in to continue' : 'Sign up to get started'}
           </p>
 
           <form onSubmit={onFormSubmit}>
@@ -94,7 +100,7 @@ function Create() {
               <label className="form-label">Email Address</label>
               <input
                 type="email"
-                value={email}
+                value={formState.email}
                 onChange={onEmailChange}
                 required
                 className="form-input"
@@ -106,7 +112,7 @@ function Create() {
               <label className="form-label">Password</label>
               <input
                 type="password"
-                value={password}
+                value={formState.password}
                 onChange={onPasswordChange}
                 required
                 className="form-input"
@@ -114,22 +120,22 @@ function Create() {
               />
             </div>
 
-            {message && (
-              <div className={`message ${message.includes('successful') ? 'success' : 'error'}`}>
-                {message}
+            {formState.message && (
+              <div className={`message ${formState.message.includes('successful') ? 'success' : 'error'}`}>
+                {formState.message}
               </div>
             )}
 
             <button type="submit" className="submit-btn">
-              {isLogin ? 'Sign In' : 'Create Account'}
+              {formState.isLogin ? 'Sign In' : 'Create Account'}
             </button>
           </form>
 
           <div className="switch-mode">
             <p>
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              {formState.isLogin ? "Don't have an account? " : "Already have an account? "}
               <button onClick={switchMode} className="switch-btn">
-                {isLogin ? 'Register here' : 'Login here'}
+                {formState.isLogin ? 'Register here' : 'Login here'}
               </button>
             </p>
           </div>
