@@ -2,17 +2,18 @@ import express from 'express'
 import cors from 'cors'
 import crudModel from './crud.js'
 import bcrypt from 'bcrypt'
+import dotenv from  'dotenv'
 import mongoose from 'mongoose'
 
 
-
+dotenv.config();
 const app = express()
-const port = 3000
+const port = process.env.PORT
 
 app.use(cors())
 app.use(express.json())
 
-mongoose.connect('mongodb://127.0.0.1:27017/crud')
+mongoose.connect(process.env.MONGO_URL)
 
 // Custom Error Classes
 class AppError extends Error {
