@@ -11,7 +11,8 @@ function Create() {
     message: ""
   })
   
-  const Api = "http://localhost:3000"
+const Api = process.env.REACT_APP_API_URL;
+
   const navigate = useNavigate()
 
   function onEmailChange(e) {

@@ -12,7 +12,8 @@ function Home() {
     currentUser: null
   })
   
-  const Api = "http://localhost:3000";
+const Api = process.env.REACT_APP_API_URL;
+
   const navigate = useNavigate();
 
   // Get users from backend
